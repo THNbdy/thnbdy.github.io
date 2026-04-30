@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我们的班级小张忠泽</title>
+    <link rel="icon" href="./favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="./favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="style.css">
+    <script src="script.js" defer></script>
+</head>
+<body>
+    <!-- 主游戏容器 -->
+    <div id="game-container">
+        <!-- 张忠泽名字标题 -->
+        <div id="cat-title">
+            <!-- 可编辑的张忠泽名字 -->
+            <h1 id="cat-name-display" class="editable-name" title="点击编辑张忠泽名字">小猎奇</h1>
+            <!-- 名字编辑输入框 (默认隐藏) -->
+            <div id="name-edit-container" class="name-edit-container" style="display: none;">
+                <input type="text" id="cat-name-edit" maxlength="10" placeholder="输入张忠泽名字">
+                <button id="save-name-button">保存</button>
+            </div>
+            <!-- 激励提示横幅 - 显示时会覆盖张忠泽名字 -->
+            <div id="encouragement-banner" class="encouragement-banner">
+                <span id="encouragement-text">张忠泽听不到，请大家再大声一点！</span>
+            </div>
+        </div>
+
+        <!-- 游戏主场景 -->
+        <div id="main-scene">
+            <!-- 游戏内UI元素 -->
+            <div class="game-ui-overlay">
+                <!-- 魔丸显示 -->
+                <div class="fish-counter">
+                    <img src="assets/images/ui/ui_icon_fish.png" alt="魔丸" class="fish-icon">
+                    <span id="fish-treat-display">0</span>
+                </div>
+                
+                <!-- 商店按钮 -->
+                <button id="open-shop-button" class="shop-btn">
+                    <span class="shop-icon">🛒</span>
+                </button>
+		
+                <!-- 旧的游戏状态面板已移除，使用浮动状态面板 -->
+            </div>
+            
+            <!-- 张忠泽图片 -->
+            <img id="cat-image" src="assets/images/character/char_cat_normal.png" alt="班级张忠泽">
+
+            <!-- 浮动状态面板 -->
+            <div id="floating-status-panel" class="floating-status-panel">
+                <div class="status-header">
+                    <span id="mode-icon">🌙</span>
+                    <span id="mode-title">守护午睡进行中</span>
+                    <div class="status-controls">
+                        <button id="pause-button" class="control-btn" title="暂停">⏸️</button>
+                        <button id="stop-button" class="control-btn" title="停止并返回设置">⏹️</button>
+                    </div>
+                </div>
+                <div class="status-info">
+                    <div class="status-row">
+                        <span id="volume-status">安静中 (音量: 3 ≤ 25)</span>
+                    </div>
+                    <div class="time-stats">
+                        <div class="time-row">
+                            <span id="time-remaining">还需 10分钟</span>
+                            <span class="time-separator">|</span>
+                            <span class="effective-time-label">有效:</span>
+                            <span id="effective-time-value">0分0秒</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 物品收藏区域 -->
+        <div id="items-collection-area">
+            <div class="collection-header">
+                <span class="collection-title" id="collection-title">🎁 用魔丸为张忠泽购买的物品</span>
+                <span class="collection-count" id="collection-count">0</span>
+            </div>
+            <div id="purchased-items-container" class="items-grid"></div>
+        </div>
+
+        <!-- 互动与控制区 -->
+        <div id="controls">
+            <!-- 模式切换按钮 -->
+            <button id="start-quiet-mode-button" class="image-button">
+                <img src="assets/images/ui/ui_button_sleep.png" alt="守护午睡">
+            </button>
+            <button id="start-loud-mode-button" class="image-button">
+                <img src="assets/images/ui/ui_button_story.png" alt="故事时间">
+            </button>
+        </div>
+    </div>
+
+    <!-- 警告覆盖层 -->
+    <div id="warning-overlay">
+        <img id="warning-icon" src="assets/images/ui/ui_icon_shhh.png" alt="嘘">
+    </div>
+
+    <!-- 初始设置弹窗 -->
+    <div id="setup-modal">
+        <div class="modal-content">
+            <h2>全班一起养张忠泽！</h2>
+            <p>暂时给张忠泽起个名字（可以再更改）</p>
+            <input type="text" id="cat-name-input" placeholder="输入张忠泽名字" maxlength="10">
+            <button id="start-game-button">开始游戏</button>
+        </div>
+    </div>
+
+    <!-- 麦克风权限提示 -->
+    <div id="mic-permission-modal" style="display: none;">
+        <div class="modal-content">
+            <h2>需要麦克风权限</h2>
+            <p>游戏需要使用麦克风来监测音量，请允许麦克风权限。</p>
+            <button id="request-mic-button">允许麦克风</button>
+        </div>
+    </div>
+
+    <!-- 游戏设置弹窗 -->
+    <div id="game-settings-modal" class="modal" style="display: none;">
+        <div class="modal-content settings-content">
+            <div class="settings-header">
+                <h2 id="settings-title">🌙 守护午睡设置</h2>
+                <button id="close-settings-button" class="close-button">×</button>
+            </div>
+            
+            <div class="settings-section">
+                <h3>⏰ 目标时间</h3>
+                <div class="time-options">
+                    <button class="time-btn" data-time="5">5分钟</button>
+                    <button class="time-btn active" data-time="10">10分钟</button>
+                    <button class="time-btn" data-time="20">20分钟</button>
+                    <button class="time-btn" data-time="30">30分钟</button>
+                </div>
+                <div class="custom-time">
+                    <label>自定义: </label>
+                    <input type="number" id="custom-time-input" min="1" max="45" value="10">
+                    <span>分钟</span>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3 id="volume-section-title">🔊 音量要求</h3>
+                <div class="volume-presets" id="volume-presets">
+                    <button class="volume-btn" data-threshold="15">超安静</button>
+                    <button class="volume-btn active" data-threshold="25">标准</button>
+                    <button class="volume-btn" data-threshold="35">宽松</button>
+                </div>
+                <div class="volume-slider">
+                    <label>手动调节: </label>
+                    <input type="range" id="volume-threshold-slider" min="10" max="80" value="25">
+                    <span id="threshold-display">25</span>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <div class="calibration-area">
+                    <div class="calibration-info">
+                        <span>当前环境音量: </span>
+                        <span id="current-volume">--</span>
+                        <span class="volume-hint">声贝 (数值越小越安静)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-actions">
+                <button id="cancel-settings-button" class="cancel-btn">取消</button>
+                <button id="start-game-button" class="start-btn">开始游戏</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 商店弹窗 -->
+    <div id="shop-modal">
+        <div class="modal-content shop-content">
+            <div class="shop-header">
+                <h2>🛒 张忠泽的魔丸商店</h2>
+                <button id="close-shop-button" class="close-button">×</button>
+            </div>
+            
+            <div class="shop-balance">
+                <img src="assets/images/ui/ui_icon_fish.png" alt="魔丸" class="icon">
+                <span>余额: </span>
+                <span id="shop-fish-balance">0</span>
+            </div>
+            
+            <div id="shop-items-grid" class="shop-grid">
+                <!-- 商品将通过JavaScript动态生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 并非版权声明弹窗 -->
+    <div id="copyright-modal-overlay">
+        <div class="content-card">
+            <h2>并非原创声明（主要是免责声明）</h2>
+	        <p style="color: gray;">--------------------------------------------------<br><strong style="font-size: larger; color: black; ">广告</strong><br><strong style="color: red;">请支持小猎奇，感谢~<br>关注小猎奇谢谢喵~<br>可以戳下面的按钮给小猎奇打赏~<br>让小猎奇挣到💴~<br>这样，小猎奇就会好好地报答你的呦~❤<br><button onclick="window.location.href='https://www.bilibili.com/video/BV1GJ411x7h7'">💰 点我给小猎奇打赏</button></strong><br>--------------------------------------------------</p>
+               <p>
+                本作品由张忠泽同学“<strong>实时进行视奸</strong>”并赏玩。<br>仅限于班级内部提升艺术品味，请不要拿去传播或进行猎奇二创，谢谢。<br>另外，我们没有本作品的原版权，也没有获得原作者授权，<br>且在其中使用了一些未经授权的素材。因此，本作品仅供学习交流使用。<br>请不要公开出售或者用于盈利，拜托了。<br>原创作者：小红书“<strong>嘟妈AI养娃笔记</strong>”(ID: <strong>duma0609</strong>)，<br>二创作者：大家都很害羞，所以不愿意透露姓名（确信）。<br>不过，大部分编程工作是THNbdy干的哦（小声）。
+	       </p>
+              <p style="color: gray; font-size: 15px">
+               班级宠物张忠泽 Class Pet Zhang Zhong Ze v1.0 正式版
+              </p>
+              <button id="copyright-ok-button">我看了100遍终于看明白了</button>
+        </div>
+    </div>
+
+    <!-- 并非版权水印 -->
+    <div id="oc-watermark" style="display: none;">关于我们</div>
+    
+    <!-- 更换壁纸按钮 -->
+    <div id="background-setting">更换壁纸</div>
+    
+    <!-- 背景音乐按钮 -->
+    <div id="background-music">背景音乐</div>
+
+    <!-- 重新开始按钮 -->
+    <div id="game-restart">重新开始</div>
+
+    <!-- <input
+	type="file"
+	accept="image/jpg, image/png, image/jpeg, image/bmp"
+	class="button" />
+    <style>
+	.button {
+		position: fixed;
+		bottom: 10px;
+		left: 10px;
+	}
+     </style> -->
+</body>
+</html>
