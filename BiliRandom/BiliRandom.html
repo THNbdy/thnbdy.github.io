@@ -1,0 +1,1392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BiliRandom - 打破信息茧房</title>
+<style>
+/* ========== 颜色系统（单一来源） ========== */
+:root {
+  /* 基础色板 */
+  --bg: #f7f8fa;
+  --card: #ffffff;
+  --card-hover: #f0f2f5;
+  --text: #18191c;
+  --text-muted: #61666d;
+  --border: #e3e5e7;
+  --danger: #FB7299;
+  --success: #00c853;
+
+  /* 固定品牌色 */
+  --brand-blue: #00A1D6;
+  --brand-pink: #FB7299;
+
+  /* Logo 渐变：固定左上蓝 → 右下粉 */
+  --logo-gradient: linear-gradient(135deg, #00A1D6 0%, #00A1D6 30%, #FB7299 70%, #FB7299 100%);
+
+  /* ===== 11 种类型色（唯一色源） ===== */
+  --c-video:     #00A1D6;  /* 蓝 */
+  --c-article:   #ffb800;  /* 琥珀 */
+  --c-photo:     #e91e63;  /* 玫红 */
+  --c-bangumi:   #4caf50;  /* 绿 */
+  --c-movie:     #ff5722;  /* 橙红 */
+  --c-audio:     #9c27b0;  /* 紫 */
+  --c-topic:     #ff9800;  /* 橙 */
+  --c-dynamic:   #FB7299;  /* 桃粉 */
+  --c-user:      #7c5cff;  /* 蓝紫 */
+  --c-live_room: #ff4d4f;  /* 红 */
+  --c-live_user: #e53935;  /* 深红 */
+
+  /* 圆环（运行时被 JS 覆盖） */
+  --ring-color: var(--c-video);
+  --ring-shadow: rgba(0,161,214,0.15);
+  --ring-shadow-hover: rgba(0,161,214,0.25);
+  --ring-shadow-light: rgba(0,161,214,0.06);
+}
+
+/* ========== 深色模式 ========== */
+:root.dark-mode {
+  --bg: #0f1115;
+  --card: #1a1d24;
+  --card-hover: #22262f;
+  --text: #e6e8ec;
+  --text-muted: #8a8f99;
+  --border: #2a2e38;
+
+  /* 深色下 Tag 仍为纯色底白字（与浅色统一） */
+
+  /* 深色下阴影由 JS 统一通过 hexToRgba 计算，不单独定义 */
+}
+
+/* ========== 基础样式 ========== */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  transition: background 0.3s, color 0.3s;
+}
+body::before {
+  content: '';
+  position: fixed;
+  top: -50%; left: -50%;
+  width: 200%; height: 200%;
+  background: radial-gradient(ellipse at 50% 50%, rgba(0,161,214,0.06) 0%, transparent 50%);
+  z-index: -1;
+  animation: drift 20s ease-in-out infinite alternate;
+}
+@keyframes drift { 0% { transform: translate(0,0); } 100% { transform: translate(-5%,3%); } }
+
+.container { width: 100%; max-width: 680px; text-align: center; }
+
+/* Logo */
+.logo {
+  font-size: 48px; font-weight: 900;
+  background: var(--logo-gradient);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 6px; letter-spacing: 6px;
+}
+.subtitle { color: var(--text-muted); font-size: 13px; margin-bottom: 20px; line-height: 1.8; }
+.subtitle strong { color: var(--brand-pink); }
+
+/* 顶部工具栏 */
+.top-bar { display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+.mode-toggle-btn {
+  padding: 6px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+  cursor: pointer; border: 1px solid var(--border); background: var(--card); color: var(--text-muted);
+  transition: all 0.2s; display: flex; align-items: center; gap: 6px; user-select: none;
+}
+.mode-toggle-btn:hover { color: var(--text); border-color: var(--text-muted); }
+.mode-toggle-btn .mode-icon { font-size: 14px; }
+
+/* ===== 类型 Tabs（强制单行） ===== */
+.type-tabs {
+  display: flex; justify-content: center; gap: 5px; margin-bottom: 16px;
+  flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  padding: 2px 4px; white-space: nowrap;
+}
+.type-tabs::-webkit-scrollbar { display: none; }
+.type-tab {
+  padding: 7px 12px; border-radius: 10px; font-size: 12.5px; font-weight: 500;
+  cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--text-muted);
+  transition: all 0.25s; user-select: none;
+  display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
+}
+.type-tab:hover { color: var(--text); border-color: var(--text-muted); }
+
+/* Tab 激活态 —— 全部用 CSS 变量，统一颜色 */
+.type-tab.active[data-type="video"]     { background: var(--c-video);     border-color: var(--c-video);     color: #fff; }
+.type-tab.active[data-type="article"]   { background: var(--c-article);   border-color: var(--c-article);   color: #fff; }
+.type-tab.active[data-type="photo"]     { background: var(--c-photo);     border-color: var(--c-photo);     color: #fff; }
+.type-tab.active[data-type="bangumi"]   { background: var(--c-bangumi);   border-color: var(--c-bangumi);   color: #fff; }
+.type-tab.active[data-type="movie"]     { background: var(--c-movie);     border-color: var(--c-movie);     color: #fff; }
+.type-tab.active[data-type="audio"]     { background: var(--c-audio);     border-color: var(--c-audio);     color: #fff; }
+.type-tab.active[data-type="topic"]     { background: var(--c-topic);     border-color: var(--c-topic);     color: #fff; }
+.type-tab.active[data-type="dynamic"]   { background: var(--c-dynamic);   border-color: var(--c-dynamic);   color: #fff; }
+.type-tab.active[data-type="user"]      { background: var(--c-user);      border-color: var(--c-user);      color: #fff; }
+.type-tab.active[data-type="live_room"] { background: var(--c-live_room); border-color: var(--c-live_room); color: #fff; }
+.type-tab.active[data-type="live_user"] { background: var(--c-live_user); border-color: var(--c-live_user); color: #fff; }
+
+/* ===== 筛选器面板 ===== */
+.filter-panel {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px 16px; margin-bottom: 16px; text-align: left; display: none;
+  animation: fadeIn 0.3s ease;
+}
+.filter-panel.show { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+
+.filter-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.filter-row:last-child { margin-bottom: 0; }
+.filter-label { font-size: 12px; color: var(--text-muted); min-width: 48px; text-align: right; flex-shrink: 0; }
+
+.filter-options { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+
+/* Chip —— 激活态颜色由 JS 实时设置 style="background:var(--ring-color)" */
+.filter-chip {
+  padding: 4px 12px; border-radius: 14px; font-size: 12px; cursor: pointer;
+  border: 1px solid var(--border); background: transparent; color: var(--text-muted);
+  transition: all 0.2s; user-select: none;
+}
+.filter-chip:hover { color: var(--text); border-color: var(--text-muted); }
+.filter-chip.active {
+  background: var(--ring-color); border-color: var(--ring-color); color: #fff; font-weight: 500;
+}
+
+/* 二级分区行（默认隐藏） */
+#subTidsRow { display: none; }
+
+/* 批量数量 */
+.batch-setting { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 18px; }
+.batch-setting label { font-size: 13px; color: var(--text-muted); }
+.batch-setting input {
+  width: 60px; padding: 5px 10px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--card); color: var(--text);
+  font-size: 14px; text-align: center; outline: none;
+}
+.batch-setting input:focus { border-color: var(--ring-color); }
+
+/* ===== 主按钮（所有颜色跟随 --ring-color） ===== */
+.btn-main {
+  position: relative; width: 180px; height: 180px; border-radius: 50%;
+  border: 3px solid var(--ring-color);
+  background: var(--card); color: var(--ring-color);
+  cursor: pointer; transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+  box-shadow: 0 0 40px var(--ring-shadow), inset 0 0 20px var(--ring-shadow-light);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  margin: 0 auto 20px;
+}
+.btn-main:hover:not(:disabled) {
+  transform: scale(1.06);
+  box-shadow: 0 0 60px var(--ring-shadow-hover), inset 0 0 30px var(--ring-shadow);
+}
+.btn-main:active:not(:disabled) { transform: scale(0.97); }
+.btn-main:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-main .icon { font-size: 42px; }
+.btn-main .label { font-size: 15px; font-weight: 700; letter-spacing: 2px; }
+.btn-main .hint { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+/* Spinner */
+.spinner {
+  width: 32px; height: 32px; border: 3px solid var(--border);
+  border-top-color: var(--ring-color); border-radius: 50%;
+  animation: spin 0.8s linear infinite; margin: 0 auto;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===== 结果卡片 ===== */
+.result-list { display: flex; flex-direction: column; gap: 12px; }
+.result-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+  padding: 16px 18px; text-align: left; animation: fadeUp 0.35s ease; transition: background 0.2s;
+}
+.result-card:hover { background: var(--card-hover); }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+.card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+
+/* Tag —— 统一用 CSS 变量 */
+.tag {
+  display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  border: 1px solid;
+}
+.tag-video     { background: var(--c-video);     color: #fff; border-color: var(--c-video); }
+.tag-article   { background: var(--c-article);   color: #fff; border-color: var(--c-article); }
+.tag-photo     { background: var(--c-photo);     color: #fff; border-color: var(--c-photo); }
+.tag-bangumi   { background: var(--c-bangumi);   color: #fff; border-color: var(--c-bangumi); }
+.tag-movie     { background: var(--c-movie);     color: #fff; border-color: var(--c-movie); }
+.tag-audio     { background: var(--c-audio);     color: #fff; border-color: var(--c-audio); }
+.tag-topic     { background: var(--c-topic);     color: #fff; border-color: var(--c-topic); }
+.tag-dynamic   { background: var(--c-dynamic);   color: #fff; border-color: var(--c-dynamic); }
+.tag-user      { background: var(--c-user);      color: #fff; border-color: var(--c-user); }
+.tag-live_room { background: var(--c-live_room); color: #fff; border-color: var(--c-live_room); }
+.tag-live_user { background: var(--c-live_user); color: #fff; border-color: var(--c-live_user); }
+
+.av-badge {
+  font-size: 11px; color: var(--text-muted); background: var(--bg);
+  padding: 2px 8px; border-radius: 4px; font-family: monospace; border: 1px solid var(--border);
+}
+
+.title { font-size: 15px; font-weight: 600; line-height: 1.5; margin-bottom: 8px; }
+.title a { color: var(--text); text-decoration: none; }
+.title a:hover { color: var(--ring-color); }
+
+.meta { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
+.meta span { display: flex; align-items: center; gap: 3px; }
+
+/* 操作按钮 */
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn {
+  padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 500;
+  cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--text);
+  transition: all 0.2s; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;
+}
+/* 主操作按钮 —— 跟随圆环色 */
+.btn-primary { background: var(--ring-color); border-color: var(--ring-color); color: #fff; }
+.btn-primary:hover { opacity: 0.88; }
+.btn-ghost:hover { background: var(--card-hover); }
+
+/* ===== 统计栏 ===== */
+.stats { display: flex; justify-content: center; gap: 16px; margin-top: 20px; font-size: 12px; color: var(--text-muted); flex-wrap: wrap; }
+.stats span { display: flex; align-items: center; gap: 4px; }
+.stats .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); box-shadow: 0 0 6px var(--success); }
+
+/* ===== 历史记录 ===== */
+.history-toggle { margin-top: 18px; font-size: 12px; color: var(--text-muted); cursor: pointer; user-select: none; }
+.history-toggle:hover { color: var(--text); }
+.history-list { margin-top: 10px; text-align: left; max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
+.history-list.open { max-height: 400px; overflow-y: auto; }
+.history-item {
+  padding: 8px 14px; border-bottom: 1px solid var(--border); font-size: 12px;
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+}
+.history-item a { color: var(--text-muted); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.history-item a:hover { color: var(--ring-color); }
+.history-item .time { color: var(--text-muted); font-size: 11px; flex-shrink: 0; }
+.history-item .type-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%) translateY(20px);
+  background: var(--card); border: 1px solid var(--border); color: var(--text);
+  padding: 10px 22px; border-radius: 10px; font-size: 13px;
+  opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 999; max-width: 80vw;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* 页脚 */
+.footer { margin-top: 20px; font-size: 11px; color: var(--text-muted); text-align: center; line-height: 1.8; opacity: 0.6; }
+
+/* 免责声明 */
+.disclaimer { margin-top: 16px; text-align: left; max-width: 600px; margin-left: auto; margin-right: auto; font-size: 12px; color: var(--text-muted); }
+.disclaimer summary {
+  cursor: pointer; padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--card); font-size: 12px; color: var(--text-muted); list-style: none; user-select: none; transition: all 0.2s;
+}
+.disclaimer summary::-webkit-details-marker { display: none; }
+.disclaimer summary:hover { color: var(--text); border-color: var(--text-muted); }
+.disclaimer summary::before { content: '▶ '; font-size: 9px; transition: transform 0.2s; display: inline-block; }
+.disclaimer[open] summary::before { transform: rotate(90deg); }
+.disclaimer[open] summary { border-radius: 10px 10px 0 0; }
+.disclaimer-body { padding: 14px 16px; border: 1px solid var(--border); border-top: none; border-radius: 0 0 10px 10px; background: var(--card); line-height: 1.9; animation: fadeIn 0.25s ease; }
+.disclaimer-body p { margin-bottom: 6px; }
+.disclaimer-body ul { padding-left: 18px; margin-bottom: 4px; }
+.disclaimer-body li { margin-bottom: 3px; }
+.disclaimer-body strong { color: var(--text); }
+.disclaimer-body a { color: var(--brand-blue); text-decoration: none; }
+.disclaimer-body a:hover { text-decoration: underline; }
+
+/* 错误 */
+.error-box {
+  padding: 20px; border: 1px solid rgba(255,77,79,0.3); background: rgba(255,77,79,0.05);
+  border-radius: 12px; color: var(--danger); font-size: 13px; line-height: 1.8; text-align: left;
+}
+.error-box code { background: rgba(255,77,79,0.12); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+
+/* 响应式 */
+@media (max-width: 480px) {
+  .logo { font-size: 36px; }
+  .btn-main { width: 150px; height: 150px; }
+  .btn-main .icon { font-size: 34px; }
+  .type-tab { padding: 6px 10px; font-size: 11.5px; }
+  .filter-label { min-width: 40px; font-size: 11px; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- 顶部工具栏 -->
+  <div class="top-bar">
+    <button class="mode-toggle-btn" id="modeToggleBtn" title="切换深色/浅色/跟随系统">
+      <span class="mode-icon" id="modeIcon">☀️</span>
+      <span id="modeText">浅色</span>
+    </button>
+  </div>
+
+  <div class="logo">BiliRandom</div>
+  <div class="subtitle">
+    全维度打破信息茧房 · BV/CV · 动态 · UID · 直播间 · 分区全覆盖<br>
+    <strong>100% 可访问</strong> · 零试错 · 纯静态 · 带筛选器 · 二级分区
+  </div>
+
+  <!-- 类型选择（单行） -->
+  <div class="type-tabs" id="typeTabs">
+    <div class="type-tab active" data-type="video">🎬视频</div>
+    <div class="type-tab" data-type="article">📝专栏</div>
+    <div class="type-tab" data-type="photo">🖼️相簿</div>
+    <div class="type-tab" data-type="bangumi">🎞️番剧</div>
+    <div class="type-tab" data-type="movie">🎥影视</div>
+    <div class="type-tab" data-type="audio">🎵音频</div>
+    <div class="type-tab" data-type="topic">🔥话题</div>
+    <div class="type-tab" data-type="dynamic">💬动态</div>
+    <div class="type-tab" data-type="user">👤用户</div>
+    <div class="type-tab" data-type="live_room">🏠直播间</div>
+    <div class="type-tab" data-type="live_user">🎤主播</div>
+  </div>
+
+  <!-- 筛选器面板 -->
+  <div class="filter-panel" id="filterPanel">
+    <div class="filter-row" id="orderRow">
+      <span class="filter-label">排序</span>
+      <div class="filter-options" id="orderOptions"></div>
+    </div>
+    <div class="filter-row" id="durationRow">
+      <span class="filter-label">时长</span>
+      <div class="filter-options" id="durationOptions"></div>
+    </div>
+    <div class="filter-row" id="tidsRow">
+      <span class="filter-label">分区</span>
+      <div class="filter-options" id="tidsOptions"></div>
+    </div>
+    <div class="filter-row" id="subTidsRow">
+      <span class="filter-label">子分区</span>
+      <div class="filter-options" id="subTidsOptions"></div>
+    </div>
+    <div class="filter-row" id="timeRow">
+      <span class="filter-label">时间</span>
+      <div class="filter-options" id="timeOptions"></div>
+    </div>
+    <div class="filter-row" id="sourceRow">
+      <span class="filter-label">来源</span>
+      <div class="filter-options" id="sourceOptions"></div>
+    </div>
+  </div>
+
+  <!-- 批量数量 -->
+  <div class="batch-setting">
+    <label for="batchNum">一次随机数量：</label>
+    <input type="number" id="batchNum" min="1" max="20" value="1" />
+    <span style="font-size:12px;color:var(--text-muted);">（1-20）</span>
+  </div>
+
+  <!-- 主按钮 -->
+  <button class="btn-main" id="btnMain">
+    <span class="icon" id="btnIcon">🎲</span>
+    <span class="label" id="btnLabel">随机探索</span>
+    <span class="hint" id="btnHint">点击或按空格</span>
+  </button>
+
+  <!-- 结果区域 -->
+  <div id="resultArea"></div>
+
+  <!-- 统计 -->
+  <div class="stats" id="statsBar"></div>
+
+  <!-- 历史记录 -->
+  <div class="history-toggle" id="historyToggle">📜 历史记录 (<span id="historyCount">0</span>)</div>
+  <div class="history-list" id="historyList"></div>
+
+  <div class="footer">
+    BiliRandom · 数据来源：B站公开 API<br>
+    ⚠️ 如遇 CORS 错误，请部署到 HTTPS 环境或使用反代
+  </div>
+
+  <!-- 免责声明 -->
+  <details class="disclaimer">
+    <summary>📋 免责声明</summary>
+    <div class="disclaimer-body">
+      <p><strong>关于本项目</strong></p>
+      <p>BiliRandom 是一个开源的纯前端工具，旨在帮助用户跳出个性化推荐算法，随机探索更多元的内容。特此声明：</p>
+      <ul>
+        <li>① 本项目与哔哩哔哩（B站）官方无任何隶属、授权或合作关系，仅使用其公开 API 接口获取公开数据；</li>
+        <li>② 本项目不存储、不修改、不上传任何用户个人信息，所有数据均实时从 B 站公开接口获取；</li>
+        <li>③ 本项目为个人学习研究用途，不用于任何商业活动，不通过本工具获取任何经济利益；</li>
+        <li>④ 项目中使用的品牌色值（如胖次蓝 #00A1D6、少女粉 #FB7299）为 B 站公开配色方案，相关商标及知识产权归哔哩哔哩所有；</li>
+        <li>⑤ 用户通过本工具跳转访问的所有内容，其著作权、商标权等知识产权均归原作者/原平台所有，本项目不对内容本身负责；</li>
+        <li>⑥ 如内容权利人认为相关展示构成侵权，请联系 B 站官方处理，本项目将在收到通知后配合移除相关链接；</li>
+        <li>⑦ 本项目按"现状"提供，作者不对使用本工具产生的任何直接或间接后果承担责任，使用即视为同意本声明。</li>
+      </ul>
+      <p style="margin-top:8px;font-size:11px;opacity:0.7;">最后更新：2026年8月</p>
+    </div>
+  </details>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ==================== 配置 ====================
+// PROXY 留空 = 直连 B站；填了 = 走反代（解决 CORS）
+var PROXY = ''; // 例如 'https://your-worker.your-subdomain.workers.dev'
+
+function proxify(url) {
+  if (!PROXY) return url;
+  return PROXY + '/' + url.replace(/^https?:\/\//, '');
+}
+
+var API = {
+  // 综合/分类搜索
+  search: '/x/web-interface/wbi/search/type',
+  // 分区最新投稿
+  region: '/x/web-interface/dynamic/region?rid={tid}&pn={pn}&ps=20',
+  // 排行榜
+  ranking: '/x/web-interface/ranking/v2?rid={tid}&type={rtype}',
+  // 搜索热词
+  hotword: '/x/web-interface/wbi/search/hotword',
+  // 直播推荐
+  liveRoom: '/room/v1/room/get_user_recommend?page={pn}&page_size=20',
+  // 专栏最新
+  articleNew: '/x/article/newlist?category={cat}&pn={pn}&ps=20',
+  // 相簿热门
+  photoList: 'https://api.vc.bilibili.com/link_draw/v2/Doc/index?type=hot&page_num={pn}&page_size=20',
+  // 音频搜索
+  audioList: 'https://www.bilibili.com/audio/music-service-c/web/song/of/search?pn={pn}&ps=20&search_type=all&keyword={kw}&order={order}',
+  // 话题搜索
+  topicSearch: '/x/topic/pub/search?keywords={kw}&page_num={pn}&page_size=20'
+};
+
+// ==================== 二级分区表（高频） ====================
+var SUB_TIDS = {
+  '1': [  // 动画
+    { label:'MAD·AMV', value:'24' }, { label:'MMD·3D', value:'25' },
+    { label:'同人·手书', value:'47' }, { label:'配音', value:'257' },
+    { label:'手办·模玩', value:'210' }, { label:'特摄', value:'86' },
+    { label:'动漫杂谈', value:'253' }, { label:'综合', value:'1' }
+  ],
+  '3': [  // 音乐
+    { label:'原创音乐', value:'28' }, { label:'翻唱', value:'31' },
+    { label:'演奏', value:'59' }, { label:'VOCALOID', value:'30' },
+    { label:'音乐现场', value:'29' }, { label:'MV', value:'193' },
+    { label:'AI音乐', value:'265' }, { label:'电台', value:'267' },
+    { label:'综合', value:'3' }
+  ],
+  '4': [  // 游戏
+    { label:'单机游戏', value:'17' }, { label:'电子竞技', value:'171' },
+    { label:'手机游戏', value:'172' }, { label:'网络游戏', value:'65' },
+    { label:'桌游棋牌', value:'173' }, { label:'综合', value:'4' }
+  ],
+  '36': [ // 科技
+    { label:'数码', value:'188' }, { label:'软件', value:'189' },
+    { label:'科普', value:'190' }, { label:'互联网', value:'191' },
+    { label:'综合', value:'36' }
+  ],
+  '119': [ // 鬼畜
+    { label:'鬼畜调教', value:'22' }, { label:'音MAD', value:'26' },
+    { label:'人力VOCALOID', value:'126' }, { label:'综合', value:'119' }
+  ],
+  '160': [ // 生活
+    { label:'搞笑', value:'138' }, { label:'出行', value:'250' },
+    { label:'亲子', value:'254' }, { label:'日常', value:'21' },
+    { label:'综合', value:'160' }
+  ],
+  '201': [ // 知识
+    { label:'科学科普', value:'124' }, { label:'社科·心理', value:'125' },
+    { label:'财经', value:'207' }, { label:'校园学习', value:'208' },
+    { label:'综合', value:'201' }
+  ],
+  '181': [ // 影视
+    { label:'影视杂谈', value:'228' }, { label:'影视剪辑', value:'127' },
+    { label:'短片', value:'129' }, { label:'纪录片', value:'242' },
+    { label:'电影', value:'179' }, { label:'电视剧', value:'180' },
+    { label:'综合', value:'181' }
+  ],
+  '211': [ // 美食
+    { label:'美食制作', value:'76' }, { label:'美食侦探', value:'212' },
+    { label:'综合', value:'211' }
+  ]
+};
+
+var ORDER_OPTIONS = {
+  video: [
+    { label:'综合', value:'totalrank' }, { label:'最多播放', value:'click' },
+    { label:'最新发布', value:'pubdate' }, { label:'最多弹幕', value:'dm' },
+    { label:'最多收藏', value:'stow' }, { label:'最多评论', value:'scores' }
+  ],
+  article: [
+    { label:'综合', value:'totalrank' }, { label:'最多点赞', value:'attention' },
+    { label:'最新发布', value:'pubdate' }, { label:'最多阅读', value:'click' }
+  ],
+  user: [
+    { label:'默认', value:'0' }, { label:'粉丝最多', value:'fans' }, { label:'等级最高', value:'level' }
+  ],
+  live_room: [
+    { label:'人气最高', value:'online' }, { label:'最新开播', value:'newlive' }
+  ],
+  live_user: [
+    { label:'人气最高', value:'online' }, { label:'最新开播', value:'newlive' }
+  ],
+  photo: [
+    { label:'综合', value:'totalrank' }, { label:'最多点击', value:'click' }, { label:'最新发布', value:'pubdate' }
+  ],
+  bangumi: [
+    { label:'综合', value:'totalrank' }, { label:'最多播放', value:'click' }, { label:'最新发布', value:'pubdate' }
+  ],
+  audio: [
+    { label:'综合', value:'totalrank' }, { label:'最多播放', value:'click' }, { label:'最新发布', value:'pubdate' }
+  ],
+  movie: [
+    { label:'综合', value:'totalrank' }, { label:'最多播放', value:'click' }, { label:'最新发布', value:'pubdate' }
+  ],
+  topic: [
+    { label:'综合', value:'totalrank' }, { label:'最多讨论', value:'pubdate' }
+  ]
+};
+
+var DURATION_OPTIONS = [
+  { label:'全部', value:'0' }, { label:'<10分钟', value:'1' },
+  { label:'10-30分', value:'2' }, { label:'30-60分', value:'3' }, { label:'>60分钟', value:'4' }
+];
+
+var TIDS_OPTIONS = [
+  { label:'全部分区', value:'0' },
+  { label:'动画', value:'1' }, { label:'音乐', value:'3' }, { label:'游戏', value:'4' },
+  { label:'科技', value:'36' }, { label:'鬼畜', value:'119' }, { label:'生活', value:'160' },
+  { label:'知识', value:'201' }, { label:'影视', value:'181' }, { label:'美食', value:'211' }
+];
+
+var PHOTO_CAT_OPTIONS = [
+  { label:'全部', value:'0' }, { label:'画友', value:'1' }, { label:'摄影', value:'2' }, { label:'日常', value:'3' }
+];
+
+var TIME_OPTIONS = [
+  { label:'全部', value:'-1' }, { label:'一天内', value:'1' },
+  { label:'一周内', value:'7' }, { label:'一个月内', value:'30' }, { label:'三个月', value:'90' }
+];
+
+// 来源：搜索 / 分区最新 / 排行榜
+var SOURCE_OPTIONS = [
+  { label:'综合搜索', value:'search' }, { label:'分区最新', value:'region' }, { label:'排行榜', value:'ranking' }
+];
+
+// ==================== 颜色映射（唯一来源） ====================
+var TYPE_COLORS = {
+  video:     '#00A1D6',  // 蓝
+  article:   '#ffb800',  // 琥珀
+  photo:     '#e91e63',  // 玫红
+  bangumi:   '#4caf50',  // 绿
+  movie:     '#ff5722',  // 橙红
+  audio:     '#9c27b0',  // 紫
+  topic:     '#ff9800',  // 橙
+  dynamic:   '#FB7299',  // 桃粉
+  user:      '#7c5cff',  // 蓝紫
+  live_room: '#ff4d4f',  // 红
+  live_user: '#e53935'   // 深红
+};
+
+var TYPE_ICONS = { video:'🎬', article:'📝', photo:'🖼️', bangumi:'🎞️', movie:'🎥', audio:'🎵', topic:'🔥', dynamic:'💬', user:'👤', live_room:'🏠', live_user:'🎤' };
+var TYPE_LABELS = { video:'随机视频', article:'随机专栏', photo:'随机相簿', bangumi:'随机番剧', movie:'随机影视', audio:'随机音频', topic:'随机话题', dynamic:'随机动态', user:'随机用户', live_room:'随机直播间', live_user:'随机主播' };
+var TYPE_TAG_TEXT = { video:'🎬 视频', article:'📝 专栏', photo:'🖼️ 相簿', bangumi:'🎞️ 番剧', movie:'🎥 影视', audio:'🎵 音频', topic:'🔥 话题', dynamic:'💬 动态', user:'👤 用户', live_room:'🏠 直播间', live_user:'🎤 主播' };
+
+// ==================== 状态 ====================
+var currentType = 'video';
+var colorMode = 'light';
+var isDark = false;
+var filters = { order:'totalrank', duration:'0', tids:'0', subTids:'0', time:'-1', photoCat:'0', source:'search' };
+var videoPool=[], articlePool=[], photoPool=[], bangumiPool=[], moviePool=[], audioPool=[], topicPool=[], dynamicPool=[], userPool=[], liveRoomPool=[], liveUserPool=[];
+var usedIds = {};
+var history = [];
+try { history = JSON.parse(localStorage.getItem('BiliRandom_v3') || '[]'); } catch(e) {}
+
+// ==================== DOM ====================
+var $btn = document.getElementById('btnMain');
+var $btnIcon = document.getElementById('btnIcon');
+var $btnLabel = document.getElementById('btnLabel');
+var $resultArea = document.getElementById('resultArea');
+var $filterPanel = document.getElementById('filterPanel');
+var $toast = document.getElementById('toast');
+var $historyList = document.getElementById('historyList');
+var $historyCount = document.getElementById('historyCount');
+var $statsBar = document.getElementById('statsBar');
+var $batchNum = document.getElementById('batchNum');
+var $modeToggleBtn = document.getElementById('modeToggleBtn');
+var $modeIcon = document.getElementById('modeIcon');
+var $modeText = document.getElementById('modeText');
+
+// ==================== 深浅色模式 ====================
+function applyColorMode(mode) {
+  colorMode = mode;
+  var dark = false;
+  if (mode === 'dark') dark = true;
+  else if (mode === 'light') dark = false;
+  else if (mode === 'auto') dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+  isDark = dark;
+  document.documentElement.classList.toggle('dark-mode', isDark);
+
+  if (mode === 'auto') {
+    if (isDark) { $modeIcon.textContent = '🌙'; $modeText.textContent = '深色(系统)'; $modeToggleBtn.title = '跟随系统→深色（点击切浅色）'; }
+    else { $modeIcon.textContent = '☀️'; $modeText.textContent = '浅色(系统)'; $modeToggleBtn.title = '跟随系统→浅色（点击切深色）'; }
+  } else if (mode === 'dark') {
+    $modeIcon.textContent = '🌙'; $modeText.textContent = '深色'; $modeToggleBtn.title = '当前：深色（点击切浅色）';
+  } else {
+    $modeIcon.textContent = '☀️'; $modeText.textContent = '浅色'; $modeToggleBtn.title = '当前：浅色（点击切深色）';
+  }
+  saveSettings();
+}
+
+function initModeToggle() {
+  $modeToggleBtn.onclick = function() {
+    var next = (colorMode === 'dark') ? 'auto' : (colorMode === 'auto') ? 'light' : 'dark';
+    applyColorMode(next);
+    showToast('已切换：' + { dark:'深色模式', light:'浅色模式', auto:'跟随系统' }[next]);
+  };
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+      if (colorMode === 'auto') applyColorMode('auto');
+    });
+  }
+}
+
+function saveSettings() {
+  try { localStorage.setItem('BiliRandom_settings', JSON.stringify({ mode: colorMode })); } catch(e) {}
+}
+function loadSettings() {
+  try {
+    var s = JSON.parse(localStorage.getItem('BiliRandom_settings') || '{}');
+    if (s.mode === 'dark' || s.mode === 'light' || s.mode === 'auto') applyColorMode(s.mode);
+    else applyColorMode('light');
+  } catch(e) { applyColorMode('light'); }
+}
+
+// ==================== 类型 Tabs ====================
+function initTypeTabs() {
+  var tabs = document.querySelectorAll('.type-tab');
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].onclick = function() {
+      var all = document.querySelectorAll('.type-tab');
+      for (var j = 0; j < all.length; j++) all[j].classList.remove('active');
+      this.classList.add('active');
+      currentType = this.getAttribute('data-type');
+      onTypeChange();
+    };
+  }
+}
+
+function onTypeChange() {
+  $btnIcon.textContent = TYPE_ICONS[currentType] || '🎲';
+  $btnLabel.textContent = TYPE_LABELS[currentType] || '随机探索';
+
+  // 统一设置圆环 + 按钮 + spinner 颜色
+  var color = TYPE_COLORS[currentType] || TYPE_COLORS.video;
+  var root = document.documentElement;
+  root.style.setProperty('--ring-color', color);
+  // 动态计算 shadow 透明度
+  root.style.setProperty('--ring-shadow', hexToRgba(color, 0.15));
+  root.style.setProperty('--ring-shadow-hover', hexToRgba(color, 0.25));
+  root.style.setProperty('--ring-shadow-light', hexToRgba(color, 0.06));
+
+  // 筛选器显隐
+  var filterTypes = { video:true, article:true, photo:true, bangumi:true, movie:true, audio:true, topic:true };
+  if (filterTypes[currentType]) $filterPanel.classList.add('show');
+  else $filterPanel.classList.remove('show');
+
+  document.getElementById('durationRow').style.display = (currentType === 'video') ? '' : 'none';
+  document.getElementById('sourceRow').style.display = (currentType === 'video' || currentType === 'article' || currentType === 'bangumi' || currentType === 'movie') ? '' : 'none';
+  document.getElementById('timeRow').style.display = (currentType === 'dynamic' || currentType === 'video' || currentType === 'bangumi' || currentType === 'movie') ? '' : 'none';
+
+  // 分区行
+  var $tidsRow = document.getElementById('tidsRow');
+  var $subRow = document.getElementById('subTidsRow');
+  var $tidsOpts = document.getElementById('tidsOptions');
+  var $subOpts = document.getElementById('subTidsOptions');
+
+  if (currentType === 'photo') {
+    $tidsRow.style.display = '';
+    buildChipsFromData($tidsOpts, PHOTO_CAT_OPTIONS, 'photoCat', function() { clearPool('photo'); });
+    $subRow.style.display = 'none';
+  } else if (currentType === 'video') {
+    $tidsRow.style.display = '';
+    buildChipsFromData($tidsOpts, TIDS_OPTIONS, 'tids', function() {
+      clearPool('video');
+      // 更新二级分区
+      updateSubTids();
+    });
+    updateSubTids();
+  } else {
+    $tidsRow.style.display = 'none';
+    $subRow.style.display = 'none';
+  }
+
+  buildOrderOptions();
+  $resultArea.innerHTML = '';
+  showToast('已切换：' + (TYPE_LABELS[currentType] || '随机探索'));
+}
+
+function updateSubTids() {
+  var $subRow = document.getElementById('subTidsRow');
+  var $subOpts = document.getElementById('subTidsOptions');
+  var subs = SUB_TIDS[filters.tids];
+  if (!subs || subs.length <= 1) { $subRow.style.display = 'none'; return; }
+  $subRow.style.display = '';
+  buildChipsFromData($subOpts, subs, 'subTids', function() { clearPool('video'); });
+}
+
+// ==================== 筛选器构建 ====================
+function buildOrderOptions() {
+  var opts = ORDER_OPTIONS[currentType] || ORDER_OPTIONS.video;
+  var container = document.getElementById('orderOptions');
+  container.innerHTML = '';
+  for (var i = 0; i < opts.length; i++) {
+    (function(opt) {
+      var chip = document.createElement('div');
+      chip.className = 'filter-chip' + (filters.order === opt.value ? ' active' : '');
+      chip.textContent = opt.label;
+      chip.onclick = function() {
+        filters.order = opt.value;
+        var sibs = container.querySelectorAll('.filter-chip');
+        for (var j = 0; j < sibs.length; j++) sibs[j].classList.remove('active');
+        chip.classList.add('active');
+        clearPool(currentType);
+      };
+      container.appendChild(chip);
+    })(opts[i]);
+  }
+}
+
+function buildChipsFromData(container, options, key, onChange) {
+  container.innerHTML = '';
+  for (var i = 0; i < options.length; i++) {
+    (function(opt) {
+      var chip = document.createElement('div');
+      chip.className = 'filter-chip' + (filters[key] === opt.value ? ' active' : '');
+      chip.textContent = opt.label;
+      chip.onclick = function() {
+        filters[key] = opt.value;
+        var sibs = container.querySelectorAll('.filter-chip');
+        for (var j = 0; j < sibs.length; j++) sibs[j].classList.remove('active');
+        chip.classList.add('active');
+        if (onChange) onChange();
+      };
+      container.appendChild(chip);
+    })(options[i]);
+  }
+}
+
+function initFilterPanel() {
+  buildOrderOptions();
+  buildChipsFromData(document.getElementById('durationOptions'), DURATION_OPTIONS, 'duration', function() { clearPool(currentType); });
+  buildChipsFromData(document.getElementById('tidsOptions'), TIDS_OPTIONS, 'tids', function() { clearPool('video'); updateSubTids(); });
+  buildChipsFromData(document.getElementById('subTidsOptions'), [], 'subTids', function() { clearPool('video'); });
+  buildChipsFromData(document.getElementById('timeOptions'), TIME_OPTIONS, 'time', function() { clearPool(currentType); });
+  buildChipsFromData(document.getElementById('sourceOptions'), SOURCE_OPTIONS, 'source', function() { clearPool(currentType); });
+  updateSubTids();
+}
+
+function clearPool(type) {
+  if (type==='video') videoPool=[]; else if (type==='article') articlePool=[];
+  else if (type==='photo') photoPool=[]; else if (type==='bangumi') bangumiPool=[];
+  else if (type==='movie') moviePool=[]; else if (type==='audio') audioPool=[];
+  else if (type==='topic') topicPool=[]; else if (type==='dynamic') dynamicPool=[];
+  else if (type==='user') userPool=[]; else if (type==='live_room') liveRoomPool=[];
+  else if (type==='live_user') liveUserPool=[];
+}
+
+// ==================== API 请求 ====================
+function apiGet(url, callback) {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', proxify(url), true);
+  xhr.setRequestHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36');
+  xhr.setRequestHeader('Referer', 'https://www.bilibili.com/');
+  xhr.setRequestHeader('Accept', 'application/json');
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState === 4) {
+      if (xhr.status === 200) {
+        try { callback(null, JSON.parse(xhr.responseText)); }
+        catch(e) { callback(e, null); }
+      } else {
+        callback(new Error('HTTP ' + xhr.status), null);
+      }
+    }
+  };
+  xhr.onerror = function() { callback(new Error('Network Error'), null); };
+  xhr.send();
+}
+
+function randomKeyword() { return KEYWORDS[Math.floor(Math.random() * KEYWORDS.length)]; }
+function randomPage(max) { return Math.floor(Math.random() * max) + 1; }
+
+// 热词池（启动时拉取一次，失败则用内置）
+var KEYWORDS = ['的','了','是','我','你','他','她','它','我们','你们','a','the','is','to','of','in','on','at','by','for','1','2','3','x','r','m','v','c','k','p','hello','world','test','新','日','月','星','风','云','山','游戏','学习','日常','分享','记录','音乐','旅行','美食','科技','艺术','技术','教程','vlog','直播','搞笑','舞蹈','唱歌','绘画','编程','摄影','动画','电影','书籍','运动','健康','时尚','数码','汽车','历史','哲学'];
+
+function loadHotKeywords() {
+  apiGet(API.hotword, function(err, data) {
+    if (err || !data || data.code !== 0 || !data.data || !data.data.length) return;
+    var words = [];
+    for (var i = 0; i < data.data.length && i < 30; i++) {
+      var w = data.data[i].keyword || data.data[i].name || data.data[i].title;
+      if (w) words.push(w);
+    }
+    if (words.length > 10) KEYWORDS = words;
+  });
+}
+
+// ==================== 数据获取 ====================
+
+// 视频：支持 search / region / ranking 三种来源
+function fetchVideos(callback) {
+  var source = filters.source || 'search';
+  var tid = (filters.subTids && filters.subTids !== '0') ? filters.subTids : filters.tids;
+  var kw = encodeURIComponent(randomKeyword());
+
+  if (source === 'region') {
+    // 分区最新投稿
+    var regionTid = (tid !== '0') ? tid : String(TIDS_OPTIONS[Math.floor(Math.random()*TIDS_OPTIONS.length)].value);
+    var url = proxify(API.region.replace('{tid}', regionTid).replace('{pn}', randomPage(10)));
+    apiGet(url, function(err, data) {
+      if (err || !data || data.code !== 0 || !data.data || !data.data.archives || !data.data.archives.length) {
+        // fallback → search
+        fetchVideoSearch(kw, callback);
+        return;
+      }
+      var items = [];
+      var list = data.data.archives;
+      for (var i = 0; i < list.length; i++) {
+        var v = list[i];
+        items.push({ type:'video', id:v.bvid||v.aid, aid:v.aid||null,
+          title:stripHtml(v.title||'无标题'), author:v.author||v.name||'未知',
+          meta:'▶️ '+formatNum(v.play||v.view||0)+' · ⏱️ '+formatDuration(v.duration||0)+' · 💬 '+formatNum(v.review||v.comment||0),
+          url:'https://www.bilibili.com/video/'+(v.bvid||('av'+v.aid)) });
+      }
+      callback(null, items);
+    });
+  } else if (source === 'ranking') {
+    // 排行榜
+    var rankTid = (tid !== '0') ? tid : '0';
+    var rtype = (filters.duration === '0') ? 'all' : 'all';
+    var url2 = proxify(API.ranking.replace('{tid}', rankTid).replace('{rtype}', rtype));
+    apiGet(url2, function(err, data) {
+      if (err || !data || data.code !== 0 || !data.data || !data.data.list || !data.data.list.length) {
+        fetchVideoSearch(kw, callback);
+        return;
+      }
+      var items = [];
+      var list = data.data.list;
+      for (var i = 0; i < list.length; i++) {
+        var v = list[i];
+        items.push({ type:'video', id:v.bvid||v.aid, aid:v.aid||null,
+          title:stripHtml(v.title||'无标题'), author:v.author||'未知',
+          meta:'▶️ '+formatNum(v.play||0)+' · 💬 '+formatNum(v.review||0),
+          url:'https://www.bilibili.com/video/'+(v.bvid||('av'+v.aid)) });
+      }
+      callback(null, items);
+    });
+  } else {
+    fetchVideoSearch(kw, callback);
+  }
+}
+
+function fetchVideoSearch(kw, callback) {
+  var url = proxify(API.search) + '?search_type=video&keyword=' + kw +
+    '&page=' + randomPage(20) + '&order=' + filters.order +
+    '&duration=' + filters.duration + '&tids=' + filters.tids;
+  if (filters.time !== '-1') url += '&time_range=' + filters.time;
+  apiGet(url, function(err, data) {
+    if (err || !data || data.code !== 0 || !data.data || !data.data.result || !data.data.result.length) {
+      callback(err || new Error('视频接口返回空')); return;
+    }
+    var items = [];
+    for (var i = 0; i < data.data.result.length; i++) {
+      var v = data.data.result[i];
+      items.push({ type:'video', id:v.bvid||v.aid, aid:v.aid||null,
+        title:stripHtml(v.title||'无标题'), author:v.author||'未知',
+        meta:'▶️ '+formatNum(v.play||0)+' · ⏱️ '+formatDuration(v.duration||0)+' · 💬 '+formatNum(v.review||0),
+        url:'https://www.bilibili.com/video/'+(v.bvid||('av'+v.aid)) });
+    }
+    callback(null, items);
+  });
+}
+
+function fetchArticles(callback) {
+  var cat = 0;
+  var tidMap = { '1':'2', '3':'17', '4':'1', '36':'17', '119':'1', '160':'3', '201':'17', '181':'28', '211':'3' };
+  if (filters.tids !== '0' && tidMap[filters.tids]) cat = parseInt(tidMap[filters.tids]);
+  var url1 = proxify(API.articleNew.replace('{cat}', cat).replace('{pn}', randomPage(5)));
+  apiGet(url1, function(err, data) {
+    if (!err && data && data.code === 0 && data.data && data.data.articles && data.data.articles.length) {
+      var items = [];
+      for (var i = 0; i < data.data.articles.length; i++) {
+        var a = data.data.articles[i];
+        items.push({ type:'article', id:a.id, title:a.title||'无标题', author:a.author_name||'未知',
+          meta:'👍 '+formatNum(a.like||0)+' · 👁️ '+formatNum(a.view||0),
+          url:'https://www.bilibili.com/read/cv'+a.id });
+      }
+      callback(null, items); return;
+    }
+    var kw = encodeURIComponent(randomKeyword());
+    apiGet(proxify(API.search)+'?search_type=article&keyword='+kw+'&page='+randomPage(10)+'&order='+(filters.order||'totalrank'),
+      function(err2, data2) {
+        if (err2 || !data2 || data2.code !== 0 || !data2.data || !data2.data.result || !data2.data.result.length) {
+          callback(err2 || new Error('专栏接口返回空')); return;
+        }
+        var items2 = [];
+        for (var j = 0; j < data2.data.result.length; j++) {
+          var r = data2.data.result[j];
+          var cvid = r.id || r.article_id;
+          items2.push({ type:'article', id:cvid, title:stripHtml(r.title||'无标题'), author:r.author||'未知',
+            meta:'👁️ '+formatNum(r.view||0), url:'https://www.bilibili.com/read/cv'+cvid });
+        }
+        callback(null, items2);
+      });
+  });
+}
+
+function fetchDynamics(callback) {
+  var kw = encodeURIComponent(randomKeyword());
+  apiGet(proxify(API.search)+'?search_type=bili_dynamic&keyword='+kw+'&page='+randomPage(15), function(err, data) {
+    if (err || !data || data.code !== 0 || !data.data || !data.data.result || !data.data.result.length) {
+      callback(err || new Error('动态接口返回空')); return;
+    }
+    var items = [];
+    for (var i = 0; i < data.data.result.length; i++) {
+      var d = data.data.result[i];
+      var dynId = d.dynamic_id || d.id;
+      items.push({ type:'dynamic', id:dynId,
+        title:stripHtml((d.desc||d.content||'动态内容').slice(0,80)),
+        author:d.uname||d.author||'未知',
+        meta:'💬 '+formatNum(d.reply||d.comment||0)+' · ❤️ '+formatNum(d.like||0),
+        url:'https://t.bilibili.com/'+dynId });
+    }
+    callback(null, items);
+  });
+}
+
+function fetchUsers(callback) {
+  var kw = encodeURIComponent(randomKeyword());
+  var orderVal = (filters.order === 'totalrank') ? '0' : filters.order;
+  apiGet(proxify(API.search)+'?search_type=bili_user&keyword='+kw+'&page='+randomPage(15)+'&order='+orderVal, function(err, data) {
+    if (err || !data || data.code !== 0 || !data.data || !data.data.result || !data.data.result.length) {
+      callback(err || new Error('用户接口返回空')); return;
+    }
+    var items = [];
+    for (var i = 0; i < data.data.result.length; i++) {
+      var u = data.data.result[i];
+      var uid = u.mid || u.user_id;
+      items.push({ type:'user', id:uid, title:u.uname||u.name||'未知用户', author:'LV'+(u.level||0),
+        meta:'👥 '+formatNum(u.fans||0)+'粉丝 · 📝 '+formatNum(u.video_count||u.videos||0)+'投稿',
+        url:'https://space.bilibili.com/'+uid });
+    }
+    callback(null, items);
+  });
+}
+
+function fetchLiveRoom(callback) {
+  apiGet(proxify(API.liveRoom.replace('{pn}', randomPage(10))), function(err, data) {
+    if (err || !data || data.code !== 0 || !data.data || !data.data.length) {
+      callback(err || new Error('直播间接口返回空')); return;
+    }
+    var items = [];
+    for (var i = 0; i < data.data.length; i++) {
+      var r = data.data[i];
+      var roomId = r.roomid || r.room_id;
+      items.push({ type:'live_room', id:roomId, title:r.title||'直播间', author:r.uname||r.name||'未知主播',
+        meta:'🔴 '+formatNum(r.online||r.hot||0)+'人在线 · '+(r.area_name||r.category||''),
+        url:'https://live.bilibili.com/'+roomId });
+    }
+    callback(null, items);
+  });
+}
+
+function fetchLiveUser(callback) {
+  var kw = encodeURIComponent(randomKeyword());
+  apiGet(proxify(API.search)+'?search_type=live_user&keyword='+kw+'&page='+randomPage(10), function(err, data) {
+    if (err || !data || data.code !== 0 || !data.data || !data.data.result || !data.data.result.length) {
+      apiGet(proxify(API.liveRoom.replace('{pn}', randomPage(10))), function(err2, data2) {
+        if (err2 || !data2 || data2.code !== 0 || !data2.data || !data2.data.length) {
+          callback(err || err2 || new Error('主播接口返回空')); return;
+        }
+        var items2 = [];
+        for (var k = 0; k < data2.data.length; k++) {
+          var r2 = data2.data[k];
+          var uid2 = r2.uid || r2.mid || r2.user_id;
+          items2.push({ type:'live_user', id:uid2, title:r2.title||r2.uname||'主播主页',
+            author:r2.uname||r2.name||'未知主播',
+            meta:'🔴 '+(r2.online||r2.hot||0)+'在线',
+            url:'https://space.bilibili.com/'+uid2 });
+        }
+        callback(null, items2);
+      });
+      return;
+    }
+    var items = [];
+    for (var j = 0; j < data.data.result.length; j++) {
+      var u = data.data.result[j];
+      var uid = u.mid || u.uid || u.user_id;
+      items.push({ type:'live_user', id:uid, title:u.uname||u.name||'主播主页', author:u.uname||u.name||'未知',
+        meta:'👥 '+formatNum(u.fans||0)+'粉丝',
+        url:'https://space.bilibili.com/'+uid });
+    }
+    callback(null, items);
+  });
+}
+
+function fetchTopic(callback) {
+  var kw = encodeURIComponent(randomKeyword());
+  apiGet(proxify(API.topicSearch.replace('{kw}', kw).replace('{pn}', randomPage(5))), function(err, data) {
+    if (err || !data || data.code !== 0 || !data.data || !data.data.topic_items || !data.data.topic_items.length) {
+      apiGet(proxify(API.search)+'?search_type=topic&keyword='+kw+'&page='+randomPage(10), function(err2, data2) {
+        if (err2 || !data2 || data2.code !== 0 || !data2.data || !data2.data.result || !data2.data.result.length) {
+          callback(err || err2 || new Error('话题接口返回空')); return;
+        }
+        var items2 = [];
+        for (var m = 0; m < data2.data.result.length; m++) {
+          var t = data2.data.result[m];
+          var tid = t.id || t.topic_id;
+          items2.push({ type:'topic', id:tid, title:stripHtml(t.title||t.name||'话题'), author:t.description||'',
+            meta:'💬 '+formatNum(t.view||t.discuss||0)+'讨论',
+            url:'https://www.bilibili.com/topic/'+(tid||'') });
+        }
+        callback(null, items2);
+      });
+      return;
+    }
+    var items = [];
+    var list = data.data.topic_items;
+    for (var i = 0; i < list.length; i++) {
+      var t = list[i];
+      items.push({ type:'topic', id:t.id||i, title:stripHtml(t.name||'话题'),
+        author:t.description||'',
+        meta:'👁️ '+formatNum(t.view||0)+' · 💬 '+formatNum(t.discuss||0),
+        url:'https://www.bilibili.com/topic/'+(t.id||'') });
+    }
+    callback(null, items);
+  });
+}
+
+function fetchMovie(callback) {
+  var kw = encodeURIComponent(randomKeyword());
+  var url = proxify(API.search) + '?search_type=media_ft&keyword=' + kw + '&page=' + randomPage(10) + '&order=' + (filters.order||'totalrank');
+  apiGet(url, function(err, data) {
+    if (err || !data || data.code !== 0 || !data.data || !data.data.result || !data.data.result.length) {
+      apiGet(proxify(API.search)+'?search_type=media_bangumi&keyword='+kw+'&page='+randomPage(10), function(err2, data2) {
+        if (err2 || !data2 || data2.code !== 0 || !data2.data || !data2.data.result || !data2.data.result.length) {
+          callback(err || err2 || new Error('影视接口返回空')); return;
+        }
+        buildBangumiItems(data2.data.result, callback);
+      });
+      return;
+    }
+    var items = [];
+    for (var i = 0; i < data.data.result.length; i++) {
+      var m = data.data.result[i];
+      var title = stripHtml(m.title || m.name || '影视');
+      var url2 = m.url || ('https://www.bilibili.com/bangumi/play/ss' + (m.season_id || m.seasonid || ''));
+      if (m.ep_id) url2 = 'https://www.bilibili.com/bangumi/play/ep' + m.ep_id;
+      items.push({ type:'movie', id:m.season_id||m.id||m.ep_id||i,
+        title:title, author:m.author||m.staff||'',
+        meta:'📺 '+formatNum(m.play||m.views||0)+' · ⭐ '+(m.score||m.rating||'暂无'),
+        url:url2 });
+    }
+    callback(null, items);
+  });
+}
+
+function fetchPhoto(callback) {
+  var pn = randomPage(5);
+  apiGet(proxify(API.photoList.replace('{pn}', pn)), function(err, data) {
+    if (err || !data || data.code !== 0 || !data.data || !data.data.items || !data.data.items.length) {
+      var kw = encodeURIComponent(randomKeyword());
+      apiGet(proxify(API.search)+'?search_type=photo&keyword='+kw+'&page='+randomPage(10)+'&order='+(filters.order||'totalrank'),
+        function(err2, data2) {
+          if (err2 || !data2 || data2.code !== 0 || !data2.data || !data2.data.result || !data2.data.result.length) {
+            callback(err2 || err || new Error('相簿接口返回空')); return;
+          }
+          var items = [];
+          for (var j = 0; j < data2.data.result.length; j++) {
+            var p = data2.data.result[j];
+            var docId = p.doc_id || p.id;
+            items.push({ type:'photo', id:docId,
+              title:stripHtml(p.title||'相簿帖子'), author:p.author||p.name||'未知',
+              meta:'👁️ '+formatNum(p.view||p.view_count||0)+' · ❤️ '+formatNum(p.like_count||p.like||0),
+              url:'https://h.bilibili.com/'+docId });
+          }
+          callback(null, items);
+        });
+      return;
+    }
+    var items = [];
+    var list = data.data.items;
+    for (var i = 0; i < list.length; i++) {
+      var it = list[i];
+      var item = it.item || it;
+      var user = it.user || {};
+      var docId = item.doc_id || item.id;
+      items.push({ type:'photo', id:docId,
+        title:stripHtml(item.title||'相簿帖子'),
+        author:user.name||item.author||'未知',
+        meta:'👁️ '+formatNum(item.view||item.view_count||0)+' · ❤️ '+formatNum(item.like||item.like_count||0),
+        url:'https://h.bilibili.com/'+docId });
+    }
+    callback(null, items);
+  });
+}
+
+function fetchBangumi(callback) {
+  var kw = encodeURIComponent(randomKeyword());
+  var stype = (filters.bangumiCat === 'media_ft') ? 'media_ft' : 'media_bangumi';
+  apiGet(proxify(API.search)+'?search_type='+stype+'&keyword='+kw+'&page='+randomPage(10)+'&order='+(filters.order||'totalrank'), function(err, data) {
+    if (err || !data || data.code !== 0 || !data.data || !data.data.result || !data.data.result.length) {
+      var alt = (stype === 'media_bangumi') ? 'media_ft' : 'media_bangumi';
+      apiGet(proxify(API.search)+'?search_type='+alt+'&keyword='+kw+'&page='+randomPage(10), function(err2, data2) {
+        if (err2 || !data2 || data2.code !== 0 || !data2.data || !data2.data.result || !data2.data.result.length) {
+          callback(err || err2 || new Error('番剧接口返回空')); return;
+        }
+        buildBangumiItems(data2.data.result, callback);
+      });
+      return;
+    }
+    buildBangumiItems(data.data.result, callback);
+  });
+}
+
+function buildBangumiItems(resultArr, callback) {
+  var items = [];
+  for (var i = 0; i < resultArr.length; i++) {
+    var b = resultArr[i];
+    var title = stripHtml(b.title || b.name || '番剧');
+    var url = 'https://www.bilibili.com/bangumi/play/ss' + (b.season_id || b.seasonid || '');
+    if (b.ep_id) url = 'https://www.bilibili.com/bangumi/play/ep' + b.ep_id;
+    else if (b.url) url = b.url;
+    items.push({ type:'bangumi', id:b.season_id||b.id||b.ep_id||i,
+      title:title, author:b.author||b.staff||b.cv||'',
+      meta:'📺 '+formatNum(b.play||b.views||0)+' · ⭐ '+(b.score||b.rating||'暂无'),
+      url:url });
+  }
+  callback(null, items);
+}
+
+function fetchAudio(callback) {
+  var kw = encodeURIComponent(randomKeyword());
+  apiGet(proxify(API.audioList.replace('{pn}', randomPage(5)).replace('{kw}', kw).replace('{order}', filters.order||'totalrank')), function(err, data) {
+    if (err || !data || data.code !== 0 || !data.data || !data.data.data || !data.data.data.length) {
+      callback(err || new Error('音频接口返回空')); return;
+    }
+    var items = [];
+    var list = data.data.data;
+    for (var i = 0; i < list.length; i++) {
+      var a = list[i];
+      items.push({ type:'audio', id:a.id||a.song_id||a.aid,
+        title:stripHtml(a.title||a.name||'音频'),
+        author:a.author||a.uname||a.singer||'未知',
+        meta:'🎵 '+formatNum(a.play||a.play_num||0)+' · ⏱️ '+formatDuration(a.duration||0),
+        url:'https://www.bilibili.com/audio/au'+(a.id||a.song_id||'') });
+    }
+    callback(null, items);
+  });
+}
+
+// ==================== 主流程 ====================
+var fetchers = {
+  video:fetchVideos, article:fetchArticles, photo:fetchPhoto, bangumi:fetchBangumi,
+  movie:fetchMovie, audio:fetchAudio, topic:fetchTopic, dynamic:fetchDynamics,
+  user:fetchUsers, live_room:fetchLiveRoom, live_user:fetchLiveUser
+};
+
+function handleRandom() {
+  if ($btn.disabled) return;
+  var batch = parseInt($batchNum.value) || 1;
+  if (batch < 1) batch = 1; if (batch > 20) batch = 20;
+  $batchNum.value = batch;
+  $btn.disabled = true;
+
+  $resultArea.innerHTML = '<div style="padding:30px 0;"><div class="spinner"></div><p style="margin-top:14px;color:var(--text-muted);font-size:13px;">正在探索'+batch+'个随机'+(TYPE_LABELS[currentType]||'内容')+'…</p></div>';
+
+  var fetcher = fetchers[currentType];
+  if (!fetcher) { $btn.disabled = false; return; }
+
+  fetcher(function(err, items) {
+    if (err || !items || !items.length) {
+      console.error(err); showError(err ? err.message : '未获取到数据');
+      $btn.disabled = false; return;
+    }
+    var used = usedIds[currentType] || (usedIds[currentType] = {});
+    var fresh = [];
+    for (var i = 0; i < items.length; i++) { if (!used[items[i].id]) fresh.push(items[i]); }
+    if (fresh.length < batch) {
+      fetcher(function(err2, items2) {
+        if (items2 && items2.length) {
+          for (var k = 0; k < items2.length && fresh.length < batch * 2; k++) {
+            if (!used[items2[k].id]) fresh.push(items2[k]);
+          }
+        }
+        renderResults(fresh, batch);
+        $btn.disabled = false;
+      });
+    } else { renderResults(fresh, batch); $btn.disabled = false; }
+  });
+}
+
+function renderResults(freshItems, batch) {
+  var selected = [];
+  var pool = freshItems.slice();
+  var pickCount = Math.min(batch, pool.length);
+  for (var i = 0; i < pickCount; i++) {
+    var idx = Math.floor(Math.random() * pool.length);
+    selected.push(pool.splice(idx, 1)[0]);
+  }
+  var used = usedIds[currentType] || (usedIds[currentType] = {});
+  for (var s = 0; s < selected.length; s++) { used[selected[s].id] = true; addHistory(selected[s]); }
+
+  var html = '<div class="result-list">';
+  for (var r = 0; r < selected.length; r++) {
+    var item = selected[r];
+    var tagClass = 'tag-' + item.type;
+    var avHtml = (item.type === 'video' && item.aid) ? '<span class="av-badge">AV'+item.aid+'</span>' : '';
+    html += '<div class="result-card">' +
+      '<div class="card-header"><span class="tag '+tagClass+'">'+(TYPE_TAG_TEXT[item.type]||item.type)+'</span>'+avHtml+'</div>' +
+      '<div class="title"><a href="'+item.url+'" target="_blank" rel="noopener">'+escapeHtml(item.title)+'</a></div>' +
+      '<div class="meta"><span>👤 '+escapeHtml(item.author)+'</span><span>'+item.meta+'</span></div>' +
+      '<div class="actions"><a class="btn btn-primary" href="'+item.url+'" target="_blank" rel="noopener">▶️ 打开</a>' +
+      '<button class="btn btn-ghost" onclick="copyLink(\''+item.url+'\')">🔗 复制</button></div></div>';
+  }
+  html += '</div>';
+  $resultArea.innerHTML = html;
+  updateStats();
+}
+
+function showError(msg) {
+  var help = '';
+  if (msg.indexOf('Failed') !== -1 || msg.indexOf('CORS') !== -1 || msg.indexOf('HTTP') !== -1) {
+    msg = '数据访问失败（CORS/网络拦截）';
+    help = '<br><br>💡 <strong>解决方案：</strong><br>① 部署到 HTTPS 环境（推荐 GitHub Pages）<br>② 在文件顶部 <code>PROXY</code> 变量填入你的反代地址<br>③ 安装浏览器 CORS 插件临时调试';
+  }
+  $resultArea.innerHTML = '<div class="error-box">⚠️ '+msg+help+'<br><br><small style="color:#888;">可尝试切换其他类型、更换筛选条件或刷新页面</small></div>';
+}
+
+function copyLink(url) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(function(){ showToast('链接已复制'); });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = url; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); showToast('链接已复制'); } catch(e) {}
+    document.body.removeChild(ta);
+  }
+}
+
+// ==================== 历史记录 ====================
+function addHistory(item) {
+  var entry = { type:item.type, id:item.id, title:item.title, url:item.url, time:Date.now() };
+  history.unshift(entry);
+  var seen = {}, dedup = [];
+  for (var i = 0; i < history.length; i++) {
+    var key = history[i].type + '_' + history[i].id;
+    if (!seen[key]) { seen[key] = true; dedup.push(history[i]); }
+  }
+  history = dedup.slice(0, 50);
+  try { localStorage.setItem('BiliRandom_v3', JSON.stringify(history)); } catch(e) {}
+  renderHistory();
+}
+
+function renderHistory() {
+  $historyCount.textContent = history.length;
+  var html = '';
+  for (var i = 0; i < history.length; i++) {
+    var h = history[i];
+    var dotColor = TYPE_COLORS[h.type] || '#888';
+    html += '<div class="history-item"><div class="type-dot" style="background:'+dotColor+'"></div>' +
+      '<a href="'+h.url+'" target="_blank" rel="noopener" title="'+escapeHtml(h.title)+'">'+escapeHtml(h.title)+'</a>' +
+      '<span class="time">'+formatTime(h.time)+'</span></div>';
+  }
+  $historyList.innerHTML = html;
+}
+document.getElementById('historyToggle').onclick = function() { $historyList.classList.toggle('open'); };
+
+// ==================== 统计 ====================
+function updateStats() {
+  var counts = { video:0, article:0, photo:0, bangumi:0, movie:0, audio:0, topic:0, dynamic:0, user:0, live_room:0, live_user:0 };
+  for (var i = 0; i < history.length; i++) { if (counts[history[i].type] !== undefined) counts[history[i].type]++; }
+  var parts = ['<span><div class="dot"></div> 已探索 '+history.length+'</span>'];
+  for (var k in counts) { if (counts[k] > 0) parts.push('<span style="color:'+TYPE_COLORS[k]+'">'+(TYPE_ICONS[k]||'')+' '+counts[k]+'</span>'); }
+  $statsBar.innerHTML = parts.join('');
+}
+
+// ==================== 工具函数 ====================
+function formatDuration(sec) {
+  sec = Math.floor(sec);
+  var h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+  if (h > 0) return h+':'+pad(m)+':'+pad(s);
+  return m+':'+pad(s);
+}
+function pad(n) { return n<10?'0'+n:''+n; }
+
+function formatNum(n) {
+  n = Number(n)||0;
+  if (n>=100000000) return (n/100000000).toFixed(1)+'亿';
+  if (n>=10000) return (n/10000).toFixed(1)+'万';
+  return String(n);
+}
+
+function formatTime(ts) {
+  var d = new Date(ts), now = new Date(), diff = (now-d)/1000;
+  if (diff<60) return '刚刚';
+  if (diff<3600) return Math.floor(diff/60)+'分钟前';
+  if (diff<86400) return Math.floor(diff/3600)+'小时前';
+  return (d.getMonth()+1)+'月'+d.getDate()+'日';
+}
+
+function stripHtml(str) { var d=document.createElement('div'); d.innerHTML=str||''; return d.textContent||d.innerText||''; }
+function escapeHtml(str) { var d=document.createElement('div'); d.appendChild(document.createTextNode(str||'')); return d.innerHTML; }
+
+// hex → rgba 工具（用于动态生成 shadow 色）
+function hexToRgba(hex, alpha) {
+  var h = hex.replace('#','');
+  if (h.length === 3) h = h.split('').map(function(c){return c+c;}).join('');
+  var r = parseInt(h.substr(0,2),16), g = parseInt(h.substr(2,2),16), b = parseInt(h.substr(4,2),16);
+  return 'rgba('+r+','+g+','+b+','+alpha+')';
+}
+
+var toastTimer = null;
+function showToast(msg) {
+  $toast.textContent = msg;
+  $toast.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ $toast.classList.remove('show'); }, 1800);
+}
+
+// ==================== 初始化 ====================
+function init() {
+  loadSettings();
+  initModeToggle();
+  initTypeTabs();
+  initFilterPanel();
+  onTypeChange();
+  renderHistory();
+  updateStats();
+  bindEvents();
+  loadHotKeywords(); // 启动时拉取搜索热词作为关键词种子
+  $filterPanel.classList.add('show');
+}
+
+function bindEvents() {
+  $btn.addEventListener('click', handleRandom);
+  document.addEventListener('keydown', function(e) {
+    if ((e.code==='Space'||e.keyCode===32) && !(e.target&&e.target.matches&&e.target.matches('input,textarea'))) {
+      e.preventDefault(); handleRandom();
+    }
+  });
+  if (location.protocol==='file:') console.warn('⚠️ file:// 协议可能导致 CORS 错误，建议用本地服务器或部署到 HTTPS 环境');
+}
+
+init();
+</script>
+</body>
+</html>
